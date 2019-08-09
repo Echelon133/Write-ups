@@ -68,7 +68,39 @@ After renaming obvious things, we get this:
 
 ![MAIN_AFTER2]()
 
-### proceed_execution function
+### proceed_execution code up until fork
+
+![PROCEED_EXECUTION1]()
+
+First function we see here is **mmap**. After checking up **man mmap** and looking at the **sys/mman.h** we can reconstruct the arguments:
+
+```C
+mmap(
+NULL,  // let the kernel choose the address 
+0x141, // size of the allocation
+PROT_READ | PROT_WRITE | PROT_EXEC, // RWX memory permission 
+MAP_ANONYMOUS | MAP_PRIVATE, // more info about this in the manual
+-1, // fd = -1 means that this argument is ignored
+0)  // memory offset set to 0
+```
+
+After **mmap** call is done, the pointer to allocated memory is copied to the stack, and the executable sets arguments before a call to **memcpy**.
+
+Checking out **man memcpy** shows us that this function takes a pointer to destination memory, a pointer to the source and an amout of bytes that have to be copied.
+
+This means that in our case **memcpy** copies 0x8d (141) bytes from some memory in data section to the memory that has been freshly allocated by **mmap**.
+
+After renaming variables for clarity:
+
+![PROCEED_EXECUTION2]()
+
+Now we can inspect the memory that **memcpy** copies from data section to the heap.
+
+![DATA_PRE_DISASM1]()
+
+We can interpret these bytes as x86-64 instructions, if we mark this section of bytes, then press the right mouse key and click **Disassemble**.
+
+
 
 
 
