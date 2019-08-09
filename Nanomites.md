@@ -32,7 +32,15 @@ In the original nanomite technique the parent (the unpacker) uses an encrypted t
 
 ## Reverse engineering using Ghidra
 
+### Initial inspection of the binary
 
+From the fact that our crackme challenge is only a single binary we can conclude that the code executed by both the parent and the child process will be there. Some versions of this technique use two different executables - one executable is a protected binary and the other is a binary that is responsible for the correct execution of the first executable. 
+
+Opening the binary in Ghidra shows us few things: 
+* symbols have been stripped (nothing unusual)
+* it uses **ptrace**, **fork**, **waitpid** - all of these functions are the key to this technique - **ptrace** is used for attaching to another process to debug it, **fork** is used for spawning a copy of the process in which the function was called, **waitpid** is used for blocking program execution until a process with given process ID sends a signal
+* it uses **puts** and **scanf** - nothing unexpected for a crackme 
+* it uses **memcpy** and **mmap** - at this point we need to find out what for
 
 
 
