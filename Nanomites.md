@@ -100,6 +100,9 @@ Now we can inspect the memory that **memcpy** copies from data section to the he
 
 We can interpret these bytes as x86-64 instructions, if we mark this section of bytes, then press the right mouse key and click **Disassemble**.
 
+![DATA_AFTER_DISASM2]()
+
+Since there is a lot of **int3** instructions here and these bytes were copied to a heap memory that has **PROT_EXEC** priviledges, we can safely assume that this is the code that the child process executes.
 
 
 
