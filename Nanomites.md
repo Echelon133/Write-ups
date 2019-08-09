@@ -39,8 +39,40 @@ From the fact that our crackme challenge is only a single binary we can conclude
 Opening the binary in Ghidra shows us few things: 
 * symbols have been stripped (nothing unusual)
 * it uses **ptrace**, **fork**, **waitpid** - all of these functions are the key to this technique - **ptrace** is used for attaching to another process to debug it, **fork** is used for spawning a copy of the process in which the function was called, **waitpid** is used for blocking program execution until a process with given process ID sends a signal
-* it uses **puts** and **scanf** - nothing unexpected for a crackme 
+* it uses **puts** and **scanf** - nothing unexpected in a crackme 
 * it uses **memcpy** and **mmap** - at this point we need to find out what for
+
+### Entry function
+
+This program entry point looks like a standard entry code of C programs. Registers get pointers to three functions before calling **__libc_start_main**.
+
+![ENTRY_BEFORE1]()
+
+We can rename these functions based on the function signature of **__libc_start_main** found on the internet.
+
+![ENTRY_AFTER2]()
+
+Functions **init_fini_setup** and **stack_end** look normal, so we do not expect any traps there.
+
+### Main function
+
+This function contains code that is quite usual for crackmes - first **puts** function displays the prompt to the screen asking the user for a flag/password, then **scanf** function is called to read that input and save it on the stack.
+
+In this case **scanf** is called with a format string *"%255s"*, which means that at most we can input 255 characters.
+
+![MAIN_BEFORE1]()
+
+After that we only have a call to a single function. Since this function is always called and is needed for the program to proceed, we can just call it **proceed_execution**.
+
+After renaming obvious things, we get this:
+
+![MAIN_AFTER2]()
+
+### proceed_execution function
+
+
+
+
 
 
 
