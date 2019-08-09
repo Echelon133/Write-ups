@@ -23,12 +23,12 @@ This crackme was solved without using any tricks/debuggers/tracers - I only used
 
 If we read up about this technique, we will find out that the key concepts of it are:
 * have at least two processes - a parent process and a child process
-* child process executes code that has some instructions (usually conditional jump instructions) replaced with 0xcc byte (which is an **int3** instruction)
-* parent process debugs the child process and waits for **int3** interrupt that initiates the interpretation phase which decides how to change child process registers (e.g. **EFLAGS** or **instruction pointer**) before setting them and resuming the child process execution
+* child process executes code that has some instructions (usually conditional jump instructions) replaced with 0xcc byte (which is an **int3** instruction, that stops the child execution and gives the control over it to the process that debugs it - the parent process)
+* parent process debugs the child process and waits for **int3** interrupt that gives it control over the child process and initiates the interpretation phase, which decides how to change child process registers (e.g. **EFLAGS** or **instruction pointer**) before setting them back and resuming the child process execution
 
-It is rather easy to notice why this technique is an anti-memory dumping technique - dumping memory from the child process will never give us the actual instructions that are executed by the program, because the **int3** instructions are never replaced in it. These interrupt instructions are used to transfer control over the child process to the parent process, so that it can modify the child registers.
+It is rather easy to see why this technique is an anti-memory dumping technique - dumping memory from the child process will never give us all of the actual instructions that are executed by the program, because the **int3** instructions are never changed to the original instructions. These interrupt instructions are used to transfer control over the child process to the parent process, so that it can modify the child process registers as if the original instructions were there.
 
-In the original nanomite technique the parent (the unpacker) uses an encrypted table that has an entry for each **int3** instruction in the child process. Each entry contains info about the original instruction that was in the code before it was replaced with the **int3**, the address, the offset and a flag that indicates whether that **int3** is a nanomite (because there is a possibility that the original code has actual **int3** instructions).
+In the original nanomite technique the parent (the unpacker) uses an encrypted table that has an entry for each **int3** instruction in the child process. Each entry contains information about the original instruction that was in the code before it was replaced with the **int3**, the address, the offset and a flag that indicates whether that **int3** is a nanomite (because there is a possibility that the original code has actual **int3** instructions).
 
 ## Reverse engineering using Ghidra
 
