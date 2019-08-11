@@ -125,7 +125,7 @@ The **waitpid** suspends execution of the calling process (it blocks the parent 
 In this case we can clearly see, that the parent process has a loop that constantly blocks its execution, waiting for signals caused by **int3** instructions of the child process. 
 This signal stops the execution of the child process and wakes the parent process, which checks the status of the child process stored in *wstatus* variable. 
 
-![PROCEED_EXECUTION_DECOMPILE1]()
+![PROCEED_EXECUTION_DECOMPILE2]()
 
 This parent process loop only takes any action if two conditional statements checking *wstatus* are true.
 
@@ -147,8 +147,37 @@ A second conditional statement is as cryptic as the one before. Fortunately, the
 
 This macro *returns the number of the signal which caused the child to stop*. Linux manual also mentions that *this macro should be employed only if WIFSTOPPED returned true*, which means that we are correct with decoding these *wstatus* checks.
 
-Since the **WSTOPSIG** macro in our program checks whether the signal number was 5, we need to know what that signal means. The answer is: signal number 5 is a **SIGTRAP**. That signal is sent when an **int3** occurs. This means that the parent process takes further action if the child process sends **SIGTRAP** signal.
+Since the **WSTOPSIG** macro in our program checks whether the signal number was 5, we need to know what that signal means. The answer is: signal number 5 is a **SIGTRAP**. That signal is sent when an **int3** occurs. This means that the parent process takes further action only if the child process sends **SIGTRAP** signal.
 
+![PROCEED_EXECUTION_DECOMPILE3]()
+
+The function that is called after receiving **SIGTRAP** from the child is most likely a function that decides how to modify registers of the child process based on the current state of the process.
+
+Whether that function was called or not, **PTRACE_CONT** resumes the child process after it was stopped by (most likely) **int3**.
+
+We can already see that "You won!" message will be printed only if **waitpid** returns -1 (meaning, that there is no longer a possibility to wait for the child process, because it was terminated) and **WSTOPSIG** of the terminated process is 0. 
+
+![PROCEED_EXECUTION_DECOMPILE4]()
+
+Now we can go back to that function that is executed after every **SIGTRAP** signal from the child process.
+
+It takes a pointer to the executable heap memory that was allocated with **mmap** before (that memory contains instructions executed by the other process) and a *pid* of the process that executes these instructions. 
+
+We can rename the function we are currently reverse engineering to **execute_hidden_instructions**.
+
+After fixing the function signature we get:
+
+![EXECUTE_HIDDEN1]()
+
+Another thing that can be quickly fixed is the type of the variable that stores register state read by **PTRACE_GETREGS** and writted by **PTRACE_SETREGS**. It's of type **struct user_regs_struct** and can be found in **user.h**. Pressing right mouse key on the variable that stores registers and clicking "Auto Create Structure" transforms it into a struct. Now clicking again on that variable with a right mouse key and choosing "Edit Data Type" option, we can model this structure so that it looks exactly like the **user_regs_struct**.
+
+![USER_REGS_STRUCT1]()
+
+After applying that structure type the our variable, we get this:
+
+![EXECUTE_HIDDEN2]()
+
+Now the code is much more transparent because we can already see this cycle of reading state of the child process registers, then operating on **RIP** (instruction pointer) and **EFLAGS**, and then setting the modified registers back.
 
 ### The child's process path of execution
 
