@@ -177,7 +177,48 @@ After applying that structure type the our variable, we get this:
 
 ![EXECUTE_HIDDEN2]()
 
-Now the code is much more transparent because we can already see this cycle of reading state of the child process registers, then operating on **RIP** (instruction pointer) and **EFLAGS**, and then setting the modified registers back.
+Now the code is much more transparent because we can already see this cycle of reading the state of the child process registers, then operating on **RIP** (instruction pointer) and **EFLAGS**, and then setting the modified registers back.
+
+Variable *local_10* is set to 0 at the beginning and incremented by one at the end of every loop so we can rename it to *counter*.
+
+If *counter* is bigger than 0xc (12) this function returns.
+
+Looking at the instructions that the child process executes, we can see that there are exactly thirteen **int3** instructions there.
+
+![HIDDEN_INSTR_INT1]()
+
+At the beginning **RAX**, **RCX** and **RBX** are set to zero. Then we have a pattern:
+
+1. Read a byte from [**RDI**] into lowest byte of **RAX** (AL)
+2. Cause a **SIGTRAP** with **int3**
+3. Execute a NOP
+4. If ZF (zero flag) was not set, then take a jump out. Otherwise increment **RDI** by one and start from point 1, unless there is a **syscall**
+
+Since this cycle of reading a byte from dereferenced **RDI** is repeated 13 times and function **execute_hidden_instructions** quits when *counter* is bigger than 12, we need to give **scanf** 13 characters of input.
+
+If we look at the end of this hidden instruction block, we'll see this:
+
+![HIDDEN_INSTRUCTIONS_EXIT1]()
+
+**Syscall** instruction executes a syscall that is represented by a number stored in the **RAX** (AL) register.
+
+**SYSCALL** 0x3c (60) is the **exit** syscall. Register **EDI** holds a status with which we want to exit.
+
+Even before that we found out, that to display the "You won!" message, we need the child process to exit with status 0. We can see here, that **exit(0)** is called only if after every **int3** the zero flag is set to 1 (because if it is 0, then the code jumps to **exit(1)**).
+
+This means that we need to find a 13 character password that makes the parent process set **ZF** of the child process to 1 after every **int3**.
+
+Now we can go back to the **execute_hidden_instructions** because we already know what has to be done.
+
+Variable *counter* seems to store the index of the character that we currently verify, but we do not keep the state of that variable. It has value 0 after each call to that function (and each **int3** causes this function to be called once).
+
+So how does the program know which character are we currently verifying?
+
+![COUNTER_SETUP1]()
+
+Since the registers that we read-in using **ptrace** always store the state of child process registers right after the **int3**, we already know that each **RIP** will be an address of the byte that is right after the **int3** (instruction pointer always points to the address of next instruction).
+
+
 
 ### The child's process path of execution
 
