@@ -102,7 +102,57 @@ We can interpret these bytes as x86-64 instructions, if we mark this section of 
 
 ![DATA_AFTER_DISASM2]()
 
-Since there is a lot of **int3** instructions here and these bytes were copied to a heap memory that has **PROT_EXEC** priviledges, we can safely assume that this is the code that the child process executes.
+Since there is a lot of **int3** instructions here and these bytes were copied to a heap memory that has **PROT_EXEC** priviledges, we can safely assume that this is the code that the child process executes. But right now we won't try to analize these instructions. 
+
+Right after the **memcpy** instruction in **proceed_execution** function we have a call to **fork**. This function creates a new process, that is a copy of the process which called it. The process that calls this function is called a parent process, whereas the created process is called a child process. Both of these processes have the same memory content right after the **fork** call, but these contents are in different memory spaces.
+
+If these processes contain identical content, how do we distinguish between the parent and the child from inside the program? Since the **fork** function returns process id of the child in the parent process and 0 in the child process, there has to be a conditional statement if we need different path of execution in the child process.
+
+Ghidra has a very useful and quite accurate decompiler that we might want to use from now, since the complexity of code we see is slowly growing.  
+
+![PROCEED_EXECUTION_DECOMPILE1]()
+
+As we can see, there is a conditional statement right after the **fork** call that divides the paths of execution of the parent and the child.
+
+### The parent's process path of execution
+
+We are going to start with reversing the parent's process path of execution.
+
+First thing that happens here is a call to **waitpid** function that has three arguments: the child process *pid*, an address of a *wstatus* variable (for storing the status information of the child process) and 0 (meaning that no additional options were chosen).
+
+The **waitpid** suspends execution of the calling process (it blocks the parent process) until the process with *pid* given as an argument to this function changes its state.
+
+In this case we can clearly see, that the parent process has a loop that constantly blocks its execution, waiting for signals caused by **int3** instructions of the child process. 
+This signal stops the execution of the child process and wakes the parent process, which checks the status of the child process stored in *wstatus* variable. 
+
+![PROCEED_EXECUTION_DECOMPILE1]()
+
+This parent process loop only takes any action if two conditional statements checking *wstatus* are true.
+
+First conditional statement checks whether *wstatus* is equal to 0x7f.
+
+A quick look into *sys/wait.h* source shows us this:
+
+```C
+#define WIFSTOPPED(s)	(((s)&0xFF)==0x7F)
+```
+
+If we look up in linux manual what **WIFSTOPPED** exactly is, we will read that it *"returns true if the child process was stopped by delivery of a signal"*.
+
+A second conditional statement is as cryptic as the one before. Fortunately, the answer to this one lies in the same place as the answer to the previous problem: in *sys/wait.h*.
+
+```C
+#define WSTOPSIG(s)	(((s)>>8)&0xFF)
+```
+
+This macro *returns the number of the signal which caused the child to stop*. Linux manual also mentions that *this macro should be employed only if WIFSTOPPED returned true*, which means that we are correct with decoding these *wstatus* checks.
+
+Since the **WSTOPSIG** macro in our program checks whether the signal number was 5, we need to know what that signal means. The answer is: signal number 5 is a **SIGTRAP**. That signal is sent when an **int3** occurs. This means that the parent process takes further action if the child process sends **SIGTRAP** signal.
+
+
+### The child's process path of execution
+
+
 
 
 
