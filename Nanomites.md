@@ -33,11 +33,11 @@ Opening the binary in Ghidra shows us few things:
 
 This program entry point looks like a standard entry code of C programs. Registers get pointers to three functions before calling **__libc_start_main**.
 
-![ENTRY_BEFORE1]()
+![ENTRY_BEFORE1](https://github.com/Echelon133/Write-ups/blob/master/screens/Nanomites/ENTRY_BEFORE1.png)
 
 We can rename these functions based on the function signature of **__libc_start_main** found on the internet.
 
-![ENTRY_AFTER2]()
+![ENTRY_AFTER2](https://github.com/Echelon133/Write-ups/blob/master/screens/Nanomites/ENTRY_AFTER2.png)
 
 Functions **init_fini_setup** and **stack_end** look normal, so we do not expect any traps there.
 
@@ -47,17 +47,17 @@ This function contains code that is quite usual for crackmes - first **puts** fu
 
 In this case **scanf** is called with a format string *"%255s"*, which means that at most we can input 255 characters.
 
-![MAIN_BEFORE1]()
+![MAIN_BEFORE1](https://github.com/Echelon133/Write-ups/blob/master/screens/Nanomites/MAIN_BEFORE1.png)
 
 After that we only have a call to a single function. Since this function is always called and is needed for the program to proceed, we can just call it **proceed_execution**.
 
 After renaming obvious things, we get this:
 
-![MAIN_AFTER2]()
+![MAIN_AFTER2](https://github.com/Echelon133/Write-ups/blob/master/screens/Nanomites/MAIN_AFTER2.png)
 
 ### proceed_execution code up until fork
 
-![PROCEED_EXECUTION1]()
+![PROCEED_EXECUTION1](https://github.com/Echelon133/Write-ups/blob/master/screens/Nanomites/PROCEED_EXECUTION1.png)
 
 First function we see here is **mmap**. After checking up **man mmap** and looking at the **sys/mman.h** we can reconstruct the arguments:
 
@@ -79,15 +79,15 @@ This means that in our case **memcpy** copies 0x8d (141) bytes from some memory 
 
 After renaming variables for clarity:
 
-![PROCEED_EXECUTION2]()
+![PROCEED_EXECUTION2](https://github.com/Echelon133/Write-ups/blob/master/screens/Nanomites/PROCEED_EXECUTION2.png)
 
 Now we can inspect the memory that **memcpy** copies from data section to the heap.
 
-![DATA_PRE_DISASM1]()
+![DATA_PRE_DISASM1](https://github.com/Echelon133/Write-ups/blob/master/screens/Nanomites/DATA_PRE_DISASM1.png)
 
 We can interpret these bytes as x86-64 instructions, if we mark this section of bytes, then press the right mouse key and click **Disassemble**.
 
-![DATA_AFTER_DISASM2]()
+![DATA_AFTER_DISASM2](https://github.com/Echelon133/Write-ups/blob/master/screens/Nanomites/DATA_AFTER_DISASM2.png)
 
 Since there is a lot of **int3** instructions here and these bytes were copied to a heap memory that has **PROT_EXEC** priviledges, we can safely assume that this is the code that the child process executes. But right now we won't try to analize these instructions. 
 
@@ -97,7 +97,7 @@ If these processes contain identical content, how do we distinguish between the 
 
 Ghidra has a very useful and quite accurate decompiler that we might want to use from now, since the complexity of code we see is slowly growing.  
 
-![PROCEED_EXECUTION_DECOMPILE1]()
+![PROCEED_EXECUTION_DECOMPILE1](https://github.com/Echelon133/Write-ups/blob/master/screens/Nanomites/PROCEED_EXECUTION_DECOMPILE1.png)
 
 As we can see, there is a conditional statement right after the **fork** call that divides the paths of execution of the parent and the child.
 
@@ -109,7 +109,7 @@ If **ptrace** failed (meaning that some other process has already managed to sta
 
 If **ptrace** succeeded, then the executable memory that was allocated previously with **mmap** (memory with hidden instructions) is called as a function (with a pointer to the user input as an argument).
 
-![CALL_HIDDEN_FUNC1]()
+![CALL_HIDDEN_FUNC1](https://github.com/Echelon133/Write-ups/blob/master/screens/Nanomites/CALL_HIDDEN_FUNC1.png)
 
 From now on, these instructions will be executed, and every **int3** will make the child process stop, and let the parent process control it.
 
@@ -124,7 +124,7 @@ The **waitpid** suspends execution of the calling process (it blocks the parent 
 In this case we can clearly see, that the parent process has a loop that constantly blocks its execution, waiting for signals caused by **int3** instructions of the child process. 
 This signal stops the execution of the child process and wakes the parent process, which checks the status of the child process stored in *wstatus* variable. 
 
-![PROCEED_EXECUTION_DECOMPILE2]()
+![PROCEED_EXECUTION_DECOMPILE2](https://github.com/Echelon133/Write-ups/blob/master/screens/Nanomites/PROCEED_EXECUTION_DECOMPILE2.png)
 
 This parent process loop only takes any action if two conditional statements checking *wstatus* are true.
 
@@ -148,7 +148,7 @@ This macro *returns the number of the signal which caused the child to stop*. Li
 
 Since the **WSTOPSIG** macro in our program checks whether the signal number was 5, we need to know what that signal means. The answer is: signal number 5 is a **SIGTRAP**. That signal is sent when an **int3** occurs. This means that the parent process takes further action only if the child process sends **SIGTRAP** signal.
 
-![PROCEED_EXECUTION_DECOMPILE3]()
+![PROCEED_EXECUTION_DECOMPILE3](https://github.com/Echelon133/Write-ups/blob/master/screens/Nanomites/PROCEED_EXECUTION_DECOMPILE3.png)
 
 The function that is called after receiving **SIGTRAP** from the child is most likely a function that decides how to modify registers of the child process based on the current state of the process.
 
@@ -156,7 +156,7 @@ Whether that function was called or not, **PTRACE_CONT** resumes the child proce
 
 We can already see that "You won!" message will be printed only if **waitpid** returns -1 (meaning, that there is no longer a possibility to wait for the child process, because it was terminated) and **WSTOPSIG** of the terminated process is 0. 
 
-![PROCEED_EXECUTION_DECOMPILE4]()
+![PROCEED_EXECUTION_DECOMPILE4](https://github.com/Echelon133/Write-ups/blob/master/screens/Nanomites/PROCEED_EXECUTION_DECOMPILE4.png)
 
 Now we can go back to that function that is executed after every **SIGTRAP** signal from the child process.
 
@@ -166,15 +166,15 @@ We can rename the function we are currently reverse engineering to **execute_hid
 
 After fixing the function signature we get:
 
-![EXECUTE_HIDDEN1]()
+![EXECUTE_HIDDEN1](https://github.com/Echelon133/Write-ups/blob/master/screens/Nanomites/EXECUTE_HIDDEN1.png)
 
 Another thing that can be quickly fixed is the type of the variable that stores register state read by **PTRACE_GETREGS** and writted by **PTRACE_SETREGS**. It's of type **struct user_regs_struct** and can be found in **user.h**. Pressing right mouse key on the variable that stores registers and clicking "Auto Create Structure" transforms it into a struct. Now clicking again on that variable with a right mouse key and choosing "Edit Data Type" option, we can model this structure so that it looks exactly like the **user_regs_struct**.
 
-![USER_REGS_STRUCT1]()
+![USER_REGS_STRUCT1](https://github.com/Echelon133/Write-ups/blob/master/screens/Nanomites/USER_REGS_STRUCT1.png)
 
 After applying that structure type the our variable, we get this:
 
-![EXECUTE_HIDDEN2]()
+![EXECUTE_HIDDEN2](https://github.com/Echelon133/Write-ups/blob/master/screens/Nanomites/EXECUTE_HIDDEN2.png)
 
 Now the code is much more transparent because we can already see this cycle of reading the state of the child process registers, then operating on **RIP** (instruction pointer) and **EFLAGS**, and then setting the modified registers back.
 
@@ -184,7 +184,7 @@ If *counter* is bigger than 0xc (12) this function returns.
 
 Looking at the instructions that the child process executes, we can see that there are exactly thirteen **int3** instructions there.
 
-![HIDDEN_INSTR_INT1]()
+![HIDDEN_INSTR_INT1](https://github.com/Echelon133/Write-ups/blob/master/screens/Nanomites/HIDDEN_INSTR_INT1.png)
 
 At the beginning **RAX**, **RCX** and **RBX** are set to zero. Then we have a pattern:
 
@@ -197,7 +197,7 @@ Since this cycle of reading a byte from dereferenced **RDI** is repeated 13 time
 
 If we look at the end of this hidden instruction block, we'll see this:
 
-![HIDDEN_INSTRUCTIONS_EXIT1]()
+![HIDDEN_INSTRUCTIONS_EXIT1](https://github.com/Echelon133/Write-ups/blob/master/screens/Nanomites/HIDDEN_INSTRUCTIONS_EXIT1.png)
 
 **Syscall** instruction executes a syscall that is represented by a number stored in the **RAX** (AL) register.
 
@@ -213,7 +213,7 @@ Variable *counter* seems to store the index of the character that we currently v
 
 So how does the program know which character are we currently verifying?
 
-![COUNTER_SETUP1]()
+![COUNTER_SETUP1](https://github.com/Echelon133/Write-ups/blob/master/screens/Nanomites/COUNTER_SETUP1.png)
 
 Since the registers that we read-in using **ptrace** always store the state of child process registers right after the **int3**, we already know that each **RIP** will be an address of the byte that is right after the **int3** (instruction pointer always points to the address of next instruction).
 
@@ -234,7 +234,7 @@ Each **RIP** value is an address of a **NOP** instruction that comes right after
 
 Result of that subtraction is compared to the value taken from an array of 38 bytes that is placed in the data section. Our *counter* variable multiplied by 3 is an index of that array. If we calculate each possible index, we'll get:
 
-![DATA_SECTION1]()
+![DATA_SECTION1](https://github.com/Echelon133/Write-ups/blob/master/screens/Nanomites/DATA_SECTION1.png)
 
 
 | Counter | Counter * 3 | Data[Counter * 3] |
@@ -249,7 +249,7 @@ Looking at the values taken from both tables we can see how the program recogniz
 
 Now since we know how this function checks the *counter*, we can look at the code inside the block:
 
-![FLAG_SETTING1]()
+![FLAG_SETTING1](https://github.com/Echelon133/Write-ups/blob/master/screens/Nanomites/FLAG_SETTING1.png)
 
 Ghidra decompiler incorrectly shows here that there are two bit-shifts - in fact, looking at the assembly we can see that there is only one. 
 
@@ -259,7 +259,7 @@ The conditional statement that we have there checks whether **RAX** register (wh
 
 We can simplify the formula that calculates the index of that array (because one variable from that formula is always equal to 0):
 
-![SIMPLE_FORMULA1]()
+![SIMPLE_FORMULA1](https://github.com/Echelon133/Write-ups/blob/master/screens/Nanomites/SIMPLE_FORMULA1.png)
 
 This gives us: 
 
@@ -277,7 +277,7 @@ We can write a short python script that decodes a password for us.
 
 We can use Ghidra's "Copy Special > Byte String" option to quickly copy the 37 byte array to our script.
 
-![PYTHON_SCRIPT1]()
+![PYTHON_SCRIPT1](https://github.com/Echelon133/Write-ups/blob/master/screens/Nanomites/PYTHON_SCRIPT1.png)
 
 After executing that script we get the message: 
 
