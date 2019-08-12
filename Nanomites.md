@@ -218,9 +218,42 @@ So how does the program know which character are we currently verifying?
 
 Since the registers that we read-in using **ptrace** always store the state of child process registers right after the **int3**, we already know that each **RIP** will be an address of the byte that is right after the **int3** (instruction pointer always points to the address of next instruction).
 
+With our current knowledge we can figure out every one of the thirteen results of **rip - (hidden_instr + 1)** equation.
+
+If we - for the sake of calculations - assume that these instructions start at address 0x400ac0, we'll get this:
 
 
-### The child's process path of execution
+|Loop | RIP        | hidden_instr+1 | Result |
+|-----|------------|----------------|--------|
+|   1 | 0x400acc   | 0x400ac1       | 0xb    |
+|   2 | 0x400ad5   | 0x400ac1       | 0x14   |
+|   3 | 0x400ade   | 0x400ac1       | 0x1d   |
+| ... | ...        | ...            | ...    |
+|  13 | 0x400b38   | 0x400ac1       | 0x77   |
+
+Each **RIP** value is an address of a **NOP** instruction that comes right after the **int3** instruction. Value that we subtract from the **RIP** is the same for each equation.
+
+Result of that subtraction is compared to the value taken from an array of 38 bytes that is placed in the data section. Our *counter* variable multiplied by 3 is an index of that array. If we calculate each possible index, we'll get:
+
+![DATA_SECTION1]()
+
+
+| Counter | Counter * 3 | Data[Counter * 3] |
+|---------|-------------|-------------------|
+| 0       | 0           | 0xb               |
+| 1       | 3           | 0x14              |
+| 2       | 6           | 0x1d              |
+| ...     | ...         | ...               |
+| 13      | 36          | 0x77              |
+
+Looking at the values taken from both tables we can see how the program recognizes which character it is currently checking: each time the function **execute_hidden_instructions** is called, it calculates a difference between the current **RIP** value and the second byte of the hidden instructions, and then checks whether the difference is equal to the byte that is stored in the data under an index of *counter* multiplied by 3. If the values are not equal, it increments the *counter* until these values are equal.
+
+Now since we know how this function checks the *counter*, we can look at the code inside the block:
+
+![FLAG_SETTING1]()
+
+Ghidra decompiler incorrectly shows here that there is a double bit-shift - in fact, there is only one. Because *counter* in our case holds only positive integers, shifting the value right by 0x1f (31) is always going to result in 0, because *counter* always has sign 0.
+
 
 
 
