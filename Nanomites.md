@@ -1,16 +1,3 @@
-1. Intro about the challenge
-2. What's a nanomites technique typically
-3. Start reversing from the main 
-* tell about the stack setup, then typicall puts/scanf combo (with info about the accepted input format string)
-* tell about the function that is called inside main
-* decipher mmap call arguments
-* decipher memcpy arguments and then check what does the source memory mean (decode as x86 instructions), then leave it for later
-* explain what fork function does, how to distinguish whether we are in a child of parent process, 
-4. Describe child process execution path, now explain what the hidden instructions do, what causes the child to terminate with status 1, what should happen to make execution fall through to the exit(0) function
-5. Explain the parent waitpid loop, how it controls the child process execution depending on the status read from wstatus, what conditions to satisfy for it to call the checking function, what child has to do to make this loop finish with the communicate about successful solution, explain the checking function (how it finds out what character we are at, then how it decodes the index of the character that it expects)
-6. Writing a python script that finds the password
-
-
 # Simple Nanomites Crackme Challenge Write-up
 
 ## Introduction
@@ -113,6 +100,18 @@ Ghidra has a very useful and quite accurate decompiler that we might want to use
 ![PROCEED_EXECUTION_DECOMPILE1]()
 
 As we can see, there is a conditional statement right after the **fork** call that divides the paths of execution of the parent and the child.
+
+### The child's process path of execution
+
+If *pid* returned by **fork** is equal to 0, the child process calls **ptrace** on itself (so that processes other than the parent process cannot trace its execution). 
+
+If **ptrace** failed (meaning that some other process has already managed to start tracing), then the child process exits with status 0x2a.
+
+If **ptrace** succeeded, then the executable memory that was allocated previously with **mmap** (memory with hidden instructions) is called as a function (with a pointer to the user input as an argument).
+
+![CALL_HIDDEN_FUNC1]()
+
+From now on, these instructions will be executed, and every **int3** will make the child process stop, and let the parent process control it.
 
 ### The parent's process path of execution
 
@@ -252,7 +251,44 @@ Now since we know how this function checks the *counter*, we can look at the cod
 
 ![FLAG_SETTING1]()
 
-Ghidra decompiler incorrectly shows here that there is a double bit-shift - in fact, there is only one. Because *counter* in our case holds only positive integers, shifting the value right by 0x1f (31) is always going to result in 0, because *counter* always has sign 0.
+Ghidra decompiler incorrectly shows here that there are two bit-shifts - in fact, looking at the assembly we can see that there is only one. 
+
+Because *counter* in our case holds only positive integers, shifting the value right by 0x1f (31) is always going to result in 0, because *counter* always has sign 0.
+
+The conditional statement that we have there checks whether **RAX** register (which holds a byte that represents one character of the password) is compared to the value taken from the same 38 element byte array that we have already seen.
+
+We can simplify the formula that calculates the index of that array (because one variable from that formula is always equal to 0):
+
+![SIMPLE_FORMULA1]()
+
+This gives us: 
+
+```C
+index = (counter * 3) + (counter & 1);
+```
+
+Condition is true only if **RAX** is equal to the byte that is stored in the byte array under that index (this time our byte array starts at the second byte, ommiting the 0xb byte).
+
+If that condition is true, **EFLAGS** register has its seventh bit set (0x40 is equal to 0b01000000). This bit represents **ZF** (zero flag).
+
+This means, that we must input a password in which each character makes both conditional statements evaluate to true, so that the **ZF** can be set before saving the registers and resuming the child process execution.
+
+We can write a short python script that decodes a password for us. 
+
+We can use Ghidra's "Copy Special > Byte String" option to quickly copy the 37 byte array to our script.
+
+![PYTHON_SCRIPT1]()
+
+After executing that script we get the message: 
+
+```
+Password you are looking for: n4n0****_3*** 
+```
+
+Providing that password (uncensored) in the executable's prompt confirms that we have solved this crackme.
+
+
+
 
 
 
