@@ -243,7 +243,7 @@ Result of that subtraction is compared to the value taken from an array of 38 by
 | 1       | 3           | 0x14              |
 | 2       | 6           | 0x1d              |
 | ...     | ...         | ...               |
-| 13      | 36          | 0x77              |
+| 13      | 39          | 0x77              |
 
 Looking at the values taken from both tables we can see how the program recognizes which character it is currently checking: each time the function **execute_hidden_instructions** is called, it calculates a difference between the current **RIP** value and the second byte of the hidden instructions, and then checks whether the difference is equal to the byte that is stored in the data under an index of *counter* multiplied by 3. If the values are not equal, it increments the *counter* until these values are equal.
 
