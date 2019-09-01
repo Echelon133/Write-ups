@@ -89,7 +89,7 @@ We can interpret these bytes as x86-64 instructions, if we mark this section of 
 
 ![DATA_AFTER_DISASM2](https://github.com/Echelon133/Write-ups/blob/master/screens/Nanomites/DATA_AFTER_DISASM2.png)
 
-Since there is a lot of **int3** instructions here and these bytes were copied to a heap memory that has **PROT_EXEC** priviledges, we can safely assume that this is the code that the child process executes. But right now we won't analize these instructions. 
+Since there is a lot of **int3** instructions here and these bytes were copied to a heap memory that has **PROT_EXEC** privileges, we can safely assume that this is the code that the child process executes. But right now we won't analize these instructions. 
 
 Right after the **memcpy** instruction in **proceed_execution** function we have a call to **fork**. This function creates a new process, that is a copy of the process which called it. The process that calls this function is called a parent process, whereas the created process is called a child process. Both of these processes have the same memory content right after the **fork** call, but these contents are in different memory spaces.
 
